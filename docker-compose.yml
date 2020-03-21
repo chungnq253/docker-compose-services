@@ -1,0 +1,107 @@
+version: '3.5'
+services:
+  # DB Service
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    expose:
+      - "3306"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysqldata:/var/lib/mysql/
+    environment:
+      MYSQL_DATABASE: fly-chat
+      MYSQL_USER: fly-chat
+      MYSQL_PASSWORD: fly-chat
+      MYSQL_ROOT_PASSWORD: root
+    networks:
+      - fly-chat-network  
+
+  # Frontend Laravel Service
+  frontend:
+    container_name: frontend
+    build: ./frontend
+    restart: unless-stopped
+    working_dir: /var/www/frontend
+    tty: true
+    image: chungnq/frontend/laravel
+    volumes: 
+      - frontend-volume:/var/www/frontend
+      - ./frontend/frontend.ini:/usr/local/etc/php/conf.d/frontend.ini
+    networks:
+      - fly-chat-network
+
+  # Backend CI Service
+  backend:
+    container_name: backend
+    build: ./backend
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    tty: true
+    image: chungnq/backend/codeigniter
+    volumes: 
+      - backend-volume:/var/www/backend
+      - ./backend/backend.ini:/usr/local/etc/php/conf.d/backend.ini
+    networks:
+      - fly-chat-network
+
+  # Gateway Service
+  gateway:
+    container_name: gateway
+    build: ./gateway
+    restart: unless-stopped
+    working_dir: /var/www/gateway
+    tty: true
+    image: chungnq/gateway/graphql
+    volumes:
+      - gateway-volume:/var/www/gateway
+    networks:
+      - fly-chat-network
+    
+  # Nginx Webserver Service
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - frontend-volume:/var/www/frontend
+      - backend-volume:/var/www/backend
+      - gateway-volume:/var/www/gateway
+    networks:
+      - fly-chat-network
+
+#Docker Networks
+networks:
+  fly-chat-network:
+    driver: bridge
+
+#Volumes
+volumes:
+  mysqldata:
+    driver: local
+  frontend-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $PWD/frontend
+  backend-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $PWD/backend
+  gateway-volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $PWD/gateway
